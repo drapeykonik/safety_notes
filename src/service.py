@@ -18,7 +18,6 @@ class UserService:
         await session.commit()
         await session.refresh(user)
         return user
-q
 
 class NoteService:
     @staticmethod
