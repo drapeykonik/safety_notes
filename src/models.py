@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship
 Base = declarative_base()
 
 
+
 class Note(Base):
     __tablename__ = "note"
 
