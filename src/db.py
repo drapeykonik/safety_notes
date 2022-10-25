@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 from src.models import Base, User
 
 
-DATABASE_URL = os.environ.get('POSTGRES_URL', "postgresql://frikxlsoxnfpgt:e5aa532e17bac140ca5b82253f8af6075295e1e4c2a0f854ca05616278817a1d@ec2-52-72-99-110.compute-1.amazonaws.com:5432/d6t0mnivj8jtgb")
+DATABASE_URL = os.environ.get('POSTGRES_URL', "postgresql+asyncpg://frikxlsoxnfpgt:e5aa532e17bac140ca5b82253f8af6075295e1e4c2a0f854ca05616278817a1d@ec2-52-72-99-110.compute-1.amazonaws.com:5432/d6t0mnivj8jtgb")
 
 
 engine = create_async_engine(DATABASE_URL)
