@@ -72,7 +72,7 @@ class NoteService:
         )
         decryptor = cipher.decryptor()
         for note in user.notes:
-            note.message = decryptor.update(eval(note.message)) + decryptor.finalize()
+            note.message = decryptor.update(binascii.unhexlify(note.message)) + decryptor.finalize()
         return user.notes
 
     @staticmethod
@@ -89,7 +89,7 @@ class NoteService:
             modes.CFB(binascii.unhexlify(iv))
         )
         encryptor = cipher.decryptor()
-        note_from_db.message = str(encryptor.update(note_message.encode()))
+        note_from_db.message = str(encryptor.update(binascii.unhexlify(note_message)) + encryptor.finalize())
 
         await session.commit()
         await session.refresh(note_from_db)

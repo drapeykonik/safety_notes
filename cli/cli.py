@@ -1,5 +1,7 @@
 import argparse
 import os
+import random
+
 import requests
 import shlex
 import sys
@@ -75,26 +77,28 @@ def get_notes(args=None):
     check_response(response, get_notes, args)
     if report_success(response):
         for note in response.json()['message']:
-            name, content = decrypt_note(user.shared_secret[0], note['name'], note['message'])
+            name, content = decrypt_note(user.shared_secret[0], note['name'], note['message'], response.json()["iv"])
             user.notes[name] = content
         print('Available notes:', ', '.join(user.notes))
 
 
 def create(args):
     user = users[current_username]
-    name, content = encrypt_note(user.shared_secret[0], args.note_name, args.content)
+    iv = random.randbytes(16)
+    name, content = encrypt_note(user.shared_secret[0], args.note_name, args.content, iv)
 
     response = requests.post(ADDRESS + 'create_note',
                              headers={'Authorization': f'Bearer {user.jwt}'},
                              json={
                                  'name': name,
-                                 'message': content
+                                 'message': content,
+                                 'iv': iv
                              },
                              proxies=MITM_PROXY)
     check_response(response, create, args)
     if report_success(response):
         note = response.json()['message']
-        name, content = decrypt_note(user.shared_secret[0], note['name'], note['message'])
+        name, content = decrypt_note(user.shared_secret[0], note['name'], note['message'], response.json()["iv"])
         user.notes[name] = content
 
 

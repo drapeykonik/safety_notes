@@ -6,6 +6,7 @@ from pydantic import BaseModel, constr
 class Note(BaseModel):
     name: constr(min_length=1, max_length=256)
     message: constr(min_length=1)
+    iv: bytes
 
 
 class Key(BaseModel):

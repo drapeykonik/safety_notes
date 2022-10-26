@@ -56,16 +56,15 @@ async def exchange_public_keys(alice_public_key: Key, user: User = Depends(curre
 async def create_note(note: Note, user: User = Depends(current_active_user), session=Depends(get_async_session)):
     if (datetime.now() - user.pk_updated_at).seconds > KEY_EXPIRATION_TIME:
         return {"message": "handshake required"}
-    note_name, note_message = note.name, note.message
+    note_name, note_message, note_iv = note.name, note.message, note.iv
     try:
-        iv = random.randbytes(16)
-        note.name, note.message = await NoteService.decrypt_note(user, note, iv)
-        await NoteService.create_note(session, user.id, note, iv)
+        note.name, note.message = await NoteService.decrypt_note(user, note, note_iv)
+        await NoteService.create_note(session, user.id, note, note_iv)
         note.name, note.message = note_name, note_message
     except BaseException as e:
         print(e)
         return {"message": "ECDH error"}
-    return {"message": note, "iv": iv}
+    return {"message": note, "iv": note_iv}
 
 
 @app.get("/get_notes")
@@ -76,15 +75,15 @@ async def get_notes(user: User = Depends(current_active_user), session=Depends(g
     notes = await NoteService.get_user_notes(session, user.id, iv)
     shared_secret = scalar_mult(int(os.getenv('private_key')), eval(user.public_key))
     password = shared_secret[0].to_bytes(128, 'big')
+    cipher = base.Cipher(
+        algorithms.IDEA(binascii.unhexlify(password)),
+        modes.CFB(binascii.unhexlify(iv))
+    )
+    encryptor = cipher.encryptor()
     try:
         for note in notes:
-            cipher = base.Cipher(
-                algorithms.IDEA(binascii.unhexlify(password)),
-                modes.CFB(binascii.unhexlify(iv))
-            )
-            encryptor = cipher.encryptor()
-            note.name = str(encryptor.update(note.name.encode()) + encryptor.finalize())
-            note.message = str(encryptor.update(note.message.encode()) + encryptor.finalize())
+            note.name = str(encryptor.update(binascii.unhexlify(note.name)) + encryptor.finalize())
+            note.message = str(encryptor.update(binascii.unhexlify(note.message)) + encryptor.finalize())
     except BaseException:
         return {"message": "ECDH error"}
     return {"message": notes, "iv": iv}
@@ -96,14 +95,14 @@ async def edit_note(note: Note, user: User = Depends(current_active_user),
     if (datetime.now() - user.pk_updated_at).seconds > KEY_EXPIRATION_TIME:
         return {"message": "handshake required"}
     try:
-        iv = random.randbytes(16)
-        note_name, note_message = note.name, note.message
-        note.name, note.message = await NoteService.decrypt_note(user, note, iv)
-        await NoteService.update_note(session, note.name, note.message, user.id, iv)
+        #iv = random.randbytes(16)
+        note_name, note_message, note_iv = note.name, note.message, note.iv
+        note.name, note.message = await NoteService.decrypt_note(user, note, note_iv)
+        await NoteService.update_note(session, note.name, note.message, user.id, note_iv)
         note.name, note.message = note_name, note_message
     except BaseException:
         return {"message": "ECDH error"}
-    return {"message": note, "iv": iv}
+    return {"message": note, "iv": note_iv}
 
 
 @app.delete("/delete_note")

@@ -14,7 +14,7 @@ def encrypt_note(shared_secret, name, content, iv):
     encryptor = cipher.encryptor()
     name = str(encryptor.update(name) + encryptor.finalize())
     if content is not None:
-        content = str(encryptor.update(content) + encryptor.finalize())
+        content = str(encryptor.update(binascii.unhexlify(content)) + encryptor.finalize())
     return name, content
 
 
@@ -26,8 +26,8 @@ def decrypt_note(shared_secret, name, content, iv):
         modes.CFB(binascii.unhexlify(iv))
     )
     decryptor = cipher.decryptor()
-    name = str(decryptor.update(eval(name)) + decryptor.finalize())
-    content = str(decryptor.update(eval(content)) + decryptor.finalize())
+    name = str(decryptor.update(binascii.unhexlify(name)) + decryptor.finalize())
+    content = str(decryptor.update(binascii.unhexlify(content)) + decryptor.finalize())
     return name, content
 
 
