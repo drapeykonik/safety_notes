@@ -1,7 +1,9 @@
 import os
+import random
 from datetime import datetime
 
-import zpp_serpent
+from cryptography.hazmat.primitives.ciphers import modes, algorithms, base
+import binascii
 from fastapi import Depends, FastAPI
 from crypto.ecc import scalar_mult
 from crypto.ecdh import make_keypair
@@ -56,29 +58,36 @@ async def create_note(note: Note, user: User = Depends(current_active_user), ses
         return {"message": "handshake required"}
     note_name, note_message = note.name, note.message
     try:
-        note.name, note.message = await NoteService.decrypt_note(user, note)
-        await NoteService.create_note(session, user.id, note)
+        iv = random.randbytes(16)
+        note.name, note.message = await NoteService.decrypt_note(user, note, iv)
+        await NoteService.create_note(session, user.id, note, iv)
         note.name, note.message = note_name, note_message
     except BaseException as e:
         print(e)
         return {"message": "ECDH error"}
-    return {"message": note}
+    return {"message": note, "iv": iv}
 
 
 @app.get("/get_notes")
 async def get_notes(user: User = Depends(current_active_user), session=Depends(get_async_session)):
     if (datetime.now() - user.pk_updated_at).seconds > KEY_EXPIRATION_TIME:
         return {"message": "handshake required"}
-    notes = await NoteService.get_user_notes(session, user.id)
+    iv = random.randbytes(16)
+    notes = await NoteService.get_user_notes(session, user.id, iv)
     shared_secret = scalar_mult(int(os.getenv('private_key')), eval(user.public_key))
-    password = shared_secret[0].to_bytes(32, 'big')
+    password = shared_secret[0].to_bytes(128, 'big')
     try:
         for note in notes:
-            note.name = str(zpp_serpent.encrypt_CFB(note.name.encode(), password))
-            note.message = str(zpp_serpent.encrypt_CFB(note.message.encode(), password))
+            cipher = base.Cipher(
+                algorithms.IDEA(binascii.unhexlify(password)),
+                modes.CFB(binascii.unhexlify(iv))
+            )
+            encryptor = cipher.encryptor()
+            note.name = str(encryptor.update(note.name.encode()) + encryptor.finalize())
+            note.message = str(encryptor.update(note.message.encode()) + encryptor.finalize())
     except BaseException:
         return {"message": "ECDH error"}
-    return {"message": notes}
+    return {"message": notes, "iv": iv}
 
 
 @app.post("/edit_note")
@@ -87,13 +96,14 @@ async def edit_note(note: Note, user: User = Depends(current_active_user),
     if (datetime.now() - user.pk_updated_at).seconds > KEY_EXPIRATION_TIME:
         return {"message": "handshake required"}
     try:
+        iv = random.randbytes(16)
         note_name, note_message = note.name, note.message
-        note.name, note.message = await NoteService.decrypt_note(user, note)
-        await NoteService.update_note(session, note.name, note.message, user.id)
+        note.name, note.message = await NoteService.decrypt_note(user, note, iv)
+        await NoteService.update_note(session, note.name, note.message, user.id, iv)
         note.name, note.message = note_name, note_message
     except BaseException:
         return {"message": "ECDH error"}
-    return {"message": note}
+    return {"message": note, "iv": iv}
 
 
 @app.delete("/delete_note")
@@ -101,11 +111,12 @@ async def delete_note(note: Note, user: User = Depends(current_active_user), ses
     if (datetime.now() - user.pk_updated_at).seconds > KEY_EXPIRATION_TIME:
         return {"message": "handshake required"}
     try:
-        note.name, note.message = await NoteService.decrypt_note(user, note)
+        iv = random.randbytes(16)
+        note.name, note.message = await NoteService.decrypt_note(user, note, iv)
         deleted_note = await NoteService.delete_note(session, user.id, note)
     except BaseException:
         return {"message": "ECDH error"}
-    return {"message": deleted_note}
+    return {"message": deleted_note, "iv": iv}
 
 
 @app.on_event("startup")

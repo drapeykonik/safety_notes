@@ -1,18 +1,33 @@
-import zpp_serpent
+import random
+
+from cryptography.hazmat.primitives.ciphers import modes, algorithms, base
+import binascii
 
 
-def encrypt_note(shared_secret, name, content=None):
-    password = shared_secret.to_bytes(32, 'big')
-    name = str(zpp_serpent.encrypt_CFB(name.encode(), password))
+def encrypt_note(shared_secret, name, content, iv):
+    password = shared_secret.to_bytes(128, 'big')
+    #iv = random.randbytes(16)
+    cipher = base.Cipher(
+        algorithms.IDEA(binascii.unhexlify(password)),
+        modes.CFB(binascii.unhexlify(iv))
+    )
+    encryptor = cipher.encryptor()
+    name = str(encryptor.update(name) + encryptor.finalize())
     if content is not None:
-        content = str(zpp_serpent.encrypt_CFB(content.encode(), password))
+        content = str(encryptor.update(content) + encryptor.finalize())
     return name, content
 
 
-def decrypt_note(shared_secret, name, content):
-    password = shared_secret.to_bytes(32, 'big')
-    name = str(zpp_serpent.decrypt_CFB(eval(name), password).decode())
-    content = str(zpp_serpent.decrypt_CFB(eval(content), password).decode())
+def decrypt_note(shared_secret, name, content, iv):
+    password = shared_secret.to_bytes(128, 'big')
+    #iv = random.randbytes(16)
+    cipher = base.Cipher(
+        algorithms.IDEA(binascii.unhexlify(password)),
+        modes.CFB(binascii.unhexlify(iv))
+    )
+    decryptor = cipher.decryptor()
+    name = str(decryptor.update(eval(name)) + decryptor.finalize())
+    content = str(decryptor.update(eval(content)) + decryptor.finalize())
     return name, content
 
 
